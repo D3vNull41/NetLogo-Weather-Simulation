@@ -1,2 +1,2 @@
 # NetLogo-Weather-Simulation
-A simple Numerical weather prediction Prove of concept
+A simple Numerical weather prediction Proof of Concep
