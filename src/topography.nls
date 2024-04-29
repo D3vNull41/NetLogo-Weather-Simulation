@@ -1,0 +1,43 @@
+globals [
+  map-width
+  map-height
+  elevation-map ; 2D array to store elevation values
+]
+
+to topography-setup-world
+  ; Set the size of the world
+  topography-set-world-size
+  set-patch-size 5
+  
+  ; Generate the elevation map
+  topography-create-elevation-map
+  topography-display-elevation-map
+end
+
+to topography-set-world-size
+  ; Set the size of the map to 100x100
+  set map-width 100
+  set map-height 100
+  resize-world 0 (map-width - 1) 0 (map-height - 1)
+end
+
+to topography-create-elevation-map
+  set elevation-map []
+  foreach (range 0 map-width) [
+    x ->
+    let column []
+    foreach (range 0 map-height) [
+      y ->
+      let elevation random-float 1.0 ; Random elevation between 0 and 1
+      set column lput elevation column
+    ]
+    set elevation-map lput column elevation-map
+  ]
+end
+
+to topography-display-elevation-map
+  ask patches [
+    let elevation item (pxcor) item (pycor) elevation-map
+    set pcolor scale-color green elevation 0 1 ; Visualize elevation
+  ]
+end
