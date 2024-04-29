@@ -1,6 +1,7 @@
 # NetLogo-Weather-Simulation
 
 ## Overview
+Work in progress...
 
 This repository contains a simple Proof of Concept for a Numerical Weather Prediction (NWP) system developed using NetLogo. The project aims to demonstrate the feasibility of simulating weather phenomena, such as rain, and its impacts on crop yield.
 
