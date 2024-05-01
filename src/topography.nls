@@ -4,6 +4,10 @@ globals [
   elevation-map ; 2D array to store elevation values
 ]
 
+to test
+  print("debug")
+end
+
 to topography-setup-world
   ; Set the size of the world
   topography-set-world-size
