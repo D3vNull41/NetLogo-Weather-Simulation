@@ -1,43 +1,78 @@
-globals [
-  map-width
-  map-height
-  elevation-map ; 2D array to store elevation values
+patches-own [
+  height ; Where the height of the landscape will be stored, in [0,1]
 ]
 
 to topography-setup-world
-  ; Set the size of the world
-  topography-set-world-size
-  set-patch-size 5
+  let pow-size 8    ; Power of 2 for the initial size
+  let roughness 1.1 ; Ratio for displacement
+  let sea-level 0.3 ; Threshold for sea level
   
-  ; Generate the elevation map
-  topography-create-elevation-map
-  topography-display-elevation-map
-end
+  ; Half size of the world, initial grid size
+  let grid-size (2 ^ pow-size) ; width of each square and diamond
+  let -grid-size (- grid-size)
 
-to topography-set-world-size
-  ; Set the size of the map to 100x100
-  set map-width 100
-  set map-height 100
-  resize-world 0 (map-width - 1) 0 (map-height - 1)
-end
+  let disp 1                         ; Initial displacement
+  let disp-ratio (2 ^ (- roughness)) ; Ratio of displacement change
+  let diamond-set 0                  ; Set to store diamond patches
+  let square-set 0                   ; Set to store square patches
+  
+  set diamond-set (patch-set patch 0 0)   ; Initial diamond: center patch
+  no-display ; Hide display for performance
+  
+  ; Resize the world, considering torus topology
+  resize-world -grid-size  grid-size -grid-size  grid-size   ; 2^grid-size +1 * 2^grid-size +1
+  set-patch-size grid-size * 2 / world-width  
+  
+  ; Seed the PRNG so that the resulting topography maps can be reproduced
+  if is-number? seedVal [
+    random-seed seedVal mod (2147483647 - 1) ; make sure the value is not out of max value for PRNG
+  ]
+  
+  while [grid-size >= 1]
+  [
+    let diamond-offset map [pos -> list (item 0 pos * grid-size) (item 1 pos * grid-size)] [[-1 1] [1 1] [1 -1] [-1 -1]]
+    let square-offset map [pos -> list (item 0 pos * grid-size) (item 1 pos * grid-size)] [[0 -1] [1 0] [0 1] [-1 0]]
 
-to topography-create-elevation-map
-  set elevation-map []
-  foreach (range 0 map-width) [
-    x ->
-    let column []
-    foreach (range 0 map-height) [
-      y ->
-      let elevation random-float 1.0 ; Random elevation between 0 and 1
-      set column lput elevation column
+    ; Compute squares for diamonds (rows, cols)
+    set square-set (patch-set [patches at-points diamond-offset] of diamond-set)
+    ; Assign random height to squares
+    ask square-set [
+      let avg mean [height] of patches at-points diamond-offset
+      set height (avg + random-uniform disp)
     ]
-    set elevation-map lput column elevation-map
+    
+    ; Compute diamonds for squares 
+    set diamond-set (patch-set [patches at-points square-offset] of square-set)
+    ; Assign random height to diamonds
+    ask diamond-set [
+      let avg mean [height] of patches at-points square-offset
+      set height (avg + random-uniform disp)
+    ]
+    
+    ; Update step size and displacement for next iteration
+    set grid-size grid-size / 2
+    set disp disp * disp-ratio
   ]
+  
+  ; Normalize heights to [0,1] range
+  let max-height max [height] of patches
+  let min-height min [height] of patches
+  
+  ask patches [
+    set height (height - min-height) / (max-height - min-height)
+    
+    ; Color patches based on sea level
+    ifelse height <= sea-level [
+      set pcolor scale-color blue height -.5 1.5
+    ] [
+      set pcolor scale-color green height -.5 1.5
+    ]
+  ]
+  
+  display ; Display the generated landscape
 end
 
-to topography-display-elevation-map
-  ask patches [
-    let elevation item (pxcor) item (pycor) elevation-map
-    set pcolor scale-color green elevation 0 1 ; Visualize elevation
-  ]
+; Return a pseudo random floating point in the range [-x;x]
+to-report random-uniform [x]
+  report (random-float 1 - 0.5) * 2 * x
 end
