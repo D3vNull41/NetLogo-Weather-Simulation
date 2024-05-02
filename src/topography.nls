@@ -2,6 +2,10 @@ patches-own [
   height ; Where the height of the landscape will be stored, in [0,1]
 ]
 
+to test
+  print("debug")
+end
+
 to topography-setup-world
   let pow-size 8    ; Power of 2 for the initial size
   let roughness 1.1 ; Ratio for displacement
