@@ -1,82 +1,134 @@
-patches-own [
-  height ; Where the height of the landscape will be stored, in [0,1]
-]
-
-to test
-  print("debug")
-end
-
 to topography-setup-world
-  let pow-size 8    ; Power of 2 for the initial size
-  let roughness 1.1 ; Ratio for displacement
-  let sea-level 0.3 ; Threshold for sea level
+  ; Here we generate a topographic map using the diamond-square algorithm, a method based on random displacement.
+  let pow-size 8    ; This is the power of 2 for the initial size.
+  let roughness 1.1 ; This ratio affects displacement to create more natural-looking landscapes.
   
-  ; Half size of the world, initial grid size
-  let grid-size (2 ^ pow-size) ; width of each square and diamond
+  ; Setting up the initial grid parameters.
+  let grid-size (2 ^ pow-size) ; This determines the width of each square and diamond.
   let -grid-size (- grid-size)
 
   let disp 1                         ; Initial displacement
-  let disp-ratio (2 ^ (- roughness)) ; Ratio of displacement change
+  let disp-ratio (2 ^ (- roughness)) ; Ratio for displacement change
   let diamond-set 0                  ; Set to store diamond patches
   let square-set 0                   ; Set to store square patches
   
   set diamond-set (patch-set patch 0 0)   ; Initial diamond: center patch
-  no-display ; Hide display for performance
   
-  ; Resize the world, considering torus topology
+  ; Resizing the world, accounting for torus topology.
   resize-world -grid-size  grid-size -grid-size  grid-size   ; 2^grid-size +1 * 2^grid-size +1
   set-patch-size grid-size * 2 / world-width  
   
-  ; Seed the PRNG so that the resulting topography maps can be reproduced
+  ; Seeding the PRNG for reproducible topography maps.
   if is-number? seedVal [
-    random-seed seedVal mod (2147483647 - 1) ; make sure the value is not out of max value for PRNG
+    random-seed seedVal mod (2147483647 - 1) ; Ensure the value is within the index range.
   ]
   
-  while [grid-size >= 1]
-  [
+  ; Main loop for generating the topographic map.
+  while [grid-size >= 1] [
     let diamond-offset map [pos -> list (item 0 pos * grid-size) (item 1 pos * grid-size)] [[-1 1] [1 1] [1 -1] [-1 -1]]
     let square-offset map [pos -> list (item 0 pos * grid-size) (item 1 pos * grid-size)] [[0 -1] [1 0] [0 1] [-1 0]]
 
-    ; Compute squares for diamonds (rows, cols)
+    ; Computing squares for diamonds (rows, cols).
     set square-set (patch-set [patches at-points diamond-offset] of diamond-set)
-    ; Assign random height to squares
+    ; Assigning random height to squares.
     ask square-set [
       let avg mean [height] of patches at-points diamond-offset
       set height (avg + random-uniform disp)
     ]
     
-    ; Compute diamonds for squares 
+    ; Computing diamonds for squares.
     set diamond-set (patch-set [patches at-points square-offset] of square-set)
-    ; Assign random height to diamonds
+    
+    ; Assigning random height to diamonds.
     ask diamond-set [
       let avg mean [height] of patches at-points square-offset
       set height (avg + random-uniform disp)
     ]
     
-    ; Update step size and displacement for next iteration
+    ; Updating step size and displacement for the next iteration.
     set grid-size grid-size / 2
     set disp disp * disp-ratio
   ]
   
-  ; Normalize heights to [0,1] range
+  topography-place-landscape ; Deciding whether a patch becomes land or water based on its height.
+  topography-place-wheat ; Adding wheat fields to suitable places on the topographic map.
+end
+
+to topography-place-landscape
+  let sea-level 0.4 ; Threshold for sea level
   let max-height max [height] of patches
   let min-height min [height] of patches
   
+  ; Setting up land and water patches.
   ask patches [
-    set height (height - min-height) / (max-height - min-height)
+    set height (height - min-height) / (max-height - min-height) ; Normalizing heights to [0,1] range
     
-    ; Color patches based on sea level
+    ; Coloring patches based on sea level.
     ifelse height <= sea-level [
+      
       set pcolor scale-color blue height -.5 1.5
+      set pkind "Water"
     ] [
+      
       set pcolor scale-color green height -.5 1.5
+      set pkind "Land"
     ]
   ]
-  
-  display ; Display the generated landscape
 end
 
-; Return a pseudo random floating point in the range [-x;x]
+to topography-place-wheat
+   ; Defining the size of square regions for the wheat fields.
+  let region-size 0.10
+  
+  ; Defining the maximum and minimum suitable height thresholds.
+  let max-suitable-height-threshold 0.6
+  let min-suitable-height-threshold 0.5
+  
+  ; Placing wheat fields based on square regions.
+  ask patches [
+    ; Determining the square region for the current patch.
+    let region-xcor (pxcor + (world-width / 2)) / region-size
+    let region-ycor (pycor + (world-height / 2)) / region-size
+    
+    ; Defining the size of wheat field pairs.
+    let pair-size 0.5
+    
+    ; Checking if the patch is within a wheat field pair.
+    let is-in-pair (abs pxcor mod pair-size = 0) and (abs pycor mod pair-size = 0)
+    
+    ; Defining the minimum distance between wheat fields.
+    let min-distance 0.1
+    
+    ifelse height >= min-suitable-height-threshold and height <= max-suitable-height-threshold and pkind != "Water" [
+      
+      ; Checking if the patch is within a wheat field pair and not too close to another pair.
+      if is-in-pair and not any? other patches in-radius min-distance with [abs pxcor mod pair-size = 0 and abs pycor mod pair-size = 0 and pkind = "Wheat"] [
+        
+        ; Defining the size of the rectangular wheat field.
+        let rect-width 5
+        let rect-height 10
+        
+        ; Checking if the patch is within the rectangular wheat field.
+        let is-in-rect (abs (pxcor mod rect-width) < rect-width / 2) and (abs (pycor mod rect-height) < rect-height / 2)
+        
+        if is-in-rect [
+          
+          ; Setting the color of patches according to wheat fields.
+          set pcolor yellow
+          ; Marking the patch as a wheat field.
+          set pkind "Wheat"
+          ; Setting the region ID for the wheat patch.
+          set pregion (word region-xcor "-" region-ycor)
+        ]
+      ]
+    ] [
+      ; Setting the region ID for non-wheat patches.
+      set pregion ""
+    ]
+  ]
+end
+
+; Returns a pseudo-random floating point number in the range [-x;x].
 to-report random-uniform [x]
   report (random-float 1 - 0.5) * 2 * x
 end

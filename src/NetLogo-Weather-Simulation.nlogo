@@ -1,18 +1,27 @@
 __includes["./topography.nls"]
 
+; These variables store information about each patch, like its height, type, and region.
+patches-own [
+  height ; This stores the height of the landscape on each patch, ranging from 0 to 1.
+  pkind ; Indicates the type of patch we're dealing with.
+  pregion ; Reserved for later use...
+]
+
 to setup
   clear-all
   reset-ticks
 
-  ; Set the size of the world and generate the elevation map
+  no-display ; Hide display (during setup of the world) for performance
+  ; Set the size of the world and generate the map (plasma fractal)
   topography-setup-world
+  display ; Display the generated landscape
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-864
-665
+730
+532
 -1
 -1
 0.9980506822612085
@@ -58,7 +67,7 @@ INPUTBOX
 177
 158
 seedVal
-3.0
+1.0
 1
 0
 Number
