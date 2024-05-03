@@ -2,13 +2,22 @@
 
 ## Overview
 
-This repository contains a simple Proof of Concept for a Numerical Weather Prediction (NWP) system developed using NetLogo. The project aims to demonstrate the feasibility of simulating weather phenomena, such as rain, and its impacts on crop yield.
+Welcome to the NetLogo-Weather-Simulation repository! Here, you'll find a simple Proof of Concept (POC) for a Numerical Weather Prediction (NWP) simulation system, built using NetLogo. Our main aim is to demonstrate the simulation of various weather phenomena, such as rain, and their effects on crop yield using NetLogo. Please note that this project is currently under development and focuses solely on showcasing the simulation capabilities with NetLogo, without aiming for a broader potential at this stage.
 
-## Features
+## Features [Under Development]
 
+- Provides a user-friendly interface for visualization and parameter input using NetLogo's graphical capabilities.
+- Implements pseudo-random map generation based on a seed value, utilizing the Random midpoint displacement method to generate diverse maps.
 - Simulates basic meteorological parameters including temperature, humidity, and pressure.
 - Models the effects of weather phenomena like rain on crop yield.
-- Provides a user-friendly interface for visualization and parameter input using NetLogo's graphical capabilities.
+- Integrates abiotic factors such as transpiration, UV-light, and others to determine crop yield.
+- Incorporates plant physiological processes including CO2 fixation to simulate plant growth and development.
+
+Note: Some features are still under development and may not be fully functional. Additionally, certain features are planned but have not yet been implemented (work in progress...).
+
+## Future Development plans
+
+We plan to integrate Python into the project to enhance its capabilities and extend its functionality. This will enable additional analysis and data processing. Stay tuned for updates on this exciting development!
 
 ## Requirements
 
@@ -27,4 +36,4 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Acknowledgements
 
-- The development team D3vNull41 and sniigle for their contributions to the project.
+- The developer sniigle for their contributions to the project.
