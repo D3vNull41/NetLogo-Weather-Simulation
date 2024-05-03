@@ -1,11 +1,11 @@
 # NetLogo-Weather-Simulation
 
 ## Overview
-
-Welcome to the NetLogo-Weather-Simulation repository! Here, you'll find a simple Proof of Concept (POC) for a Numerical Weather Prediction (NWP) simulation system, built using NetLogo. Our main aim is to demonstrate the simulation of various weather phenomena, such as rain, and their effects on crop yield using NetLogo. Please note that this project is currently under development and focuses solely on showcasing the simulation capabilities with NetLogo, without aiming for a broader potential at this stage.
+Welcome to the NetLogo-Weather-Simulation repository! Here, you'll find a simple Proof of Concept (POC) model for a Numerical Weather Prediction (NWP) system simulation, built using NetLogo. Our main aim is to demonstrate the simulation of various weather phenomena, such as rain, and their effects on crop yield using NetLogo Agent-based modeling. Please note that this project is currently under development and focuses solely on showcasing the simulation capabilities with the agent-based modeling software NetLogo, without aiming for a broader potential at this stage.
 
 ## Features [Under Development]
 
+Our NetLogo model provides the following features:
 - Provides a user-friendly interface for visualization and parameter input using NetLogo's graphical capabilities.
 - Implements pseudo-random map generation based on a seed value, utilizing the Random midpoint displacement method to generate diverse maps.
 - Simulates basic meteorological parameters including temperature, humidity, and pressure.
@@ -17,7 +17,7 @@ Note: Some features are still under development and may not be fully functional.
 
 ## Future Development plans
 
-We plan to integrate Python into the project to enhance its capabilities and extend its functionality. This will enable additional analysis and data processing. Stay tuned for updates on this exciting development!
+We plan to integrate Python into the NetLogo project to enhance its capabilities and extend its functionality. This will enable additional analysis and data processing to enhance the modeling functionality. Stay tuned for updates on this exciting development!
 
 ## Requirements
 
