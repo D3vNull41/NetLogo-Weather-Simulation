@@ -1,3 +1,16 @@
+globals [
+  sea-level ; Threshold for sea level [cm]
+  min-suitable-height-threshold-wheat ; minimum height for wheat field
+  max-suitable-height-threshold-wheat ; maximum height for wheat field
+]
+
+to topography-set-globals
+  ; Defining the maximum, minimum and stable suitable height thresholds
+  set sea-level 0.2
+  set min-suitable-height-threshold-wheat 0.35
+  set max-suitable-height-threshold-wheat 0.6
+end
+
 to topography-setup-world
   ; Here we generate a topographic map using the diamond-square algorithm, a method based on random displacement.
   let pow-size 8    ; This is the power of 2 for the initial size.
@@ -52,10 +65,10 @@ to topography-setup-world
   
   topography-place-landscape ; Deciding whether a patch becomes land or water based on its height.
   topography-place-wheat ; Adding wheat fields to suitable places on the topographic map.
+  topography-place-soil
 end
 
 to topography-place-landscape
-  let sea-level 0.4 ; Threshold for sea level
   let max-height max [height] of patches
   let min-height min [height] of patches
   
@@ -80,10 +93,6 @@ to topography-place-wheat
    ; Defining the size of square regions for the wheat fields.
   let region-size 0.10
   
-  ; Defining the maximum and minimum suitable height thresholds.
-  let max-suitable-height-threshold 0.6
-  let min-suitable-height-threshold 0.5
-  
   ; Placing wheat fields based on square regions.
   ask patches [
     ; Determining the square region for the current patch.
@@ -99,7 +108,7 @@ to topography-place-wheat
     ; Defining the minimum distance between wheat fields.
     let min-distance 0.1
     
-    ifelse height >= min-suitable-height-threshold and height <= max-suitable-height-threshold and pkind != "Water" [
+    ifelse height >= min-suitable-height-threshold-wheat and height <= max-suitable-height-threshold-wheat and pkind != "Water" [
       
       ; Checking if the patch is within a wheat field pair and not too close to another pair.
       if is-in-pair and not any? other patches in-radius min-distance with [abs pxcor mod pair-size = 0 and abs pycor mod pair-size = 0 and pkind = "Wheat"] [
@@ -126,6 +135,44 @@ to topography-place-wheat
       set pregion ""
     ]
   ]
+end
+
+to topography-place-soil
+  topography-set-soil-type
+  topography-set-soil-moisture
+end
+
+to topography-set-soil-type
+  ; set the soil type of the ground
+  ; this simulation litits to: Cambisol and Luvisol for temperate climate
+   ask patches [
+    
+    ; set soil type based on height
+    ifelse height <= sea-level [
+      ; under the sea level
+      set soil-type "Water"
+      
+    ] [
+      
+      ifelse height <= sea-level + 0.1 [
+        ; Near sea level: Alluvial soil
+        set soil-type "Alluvial Soil"
+      ] [ 
+    
+        ifelse height <= sea-level + 0.5 [
+          ; low and medium height: Cambisol
+          set soil-type "Cambisol"
+        ] [
+          ; heigher ground: Luvisol
+          set soil-type "Luvisol"
+        ]
+      ]
+    ]  
+  ]
+end
+
+to topography-set-soil-moisture
+  ; TODO: implement (D3vNull41)
 end
 
 ; Returns a pseudo-random floating point number in the range [-x;x].
