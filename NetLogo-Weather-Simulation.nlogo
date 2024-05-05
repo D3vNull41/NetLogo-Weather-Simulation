@@ -1,9 +1,11 @@
-__includes["./topography.nls"]
+__includes["./src/topography.nls"]
 
 ; These variables store information about each patch, like its height, type, and region.
 patches-own [
   height ; This stores the height of the landscape on each patch, ranging from 0 to 1.
   pkind ; Indicates the type of patch we're dealing with.
+  soil-type ; This stores the soil type for the simulation
+  moisture
   pregion ; Reserved for later use...
 ]
 
@@ -13,6 +15,7 @@ to setup
 
   no-display ; Hide display (during setup of the world) for performance
   ; Set the size of the world and generate the map (plasma fractal)
+  topography-set-globals
   topography-setup-world
   display ; Display the generated landscape
 end
