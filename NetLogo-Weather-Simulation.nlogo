@@ -1,4 +1,15 @@
-__includes["./src/topography.nls"]
+__includes["./src/topography.nls" "./src/energy.nls"]
+; Notes:Each tick should be interpreted as 1 second
+
+; global variables
+globals [
+  sea-level ; Threshold for sea level [cm]
+  min-suitable-height-threshold-wheat ; minimum height for wheat field
+  max-suitable-height-threshold-wheat ; maximum height for wheat field
+
+  global-temperature ; the overall temperatur of the "world" (map)
+  solar-irradiance
+]
 
 ; These variables store information about each patch, like its height, type, and region.
 patches-own [
@@ -7,6 +18,8 @@ patches-own [
   soil-type ; This stores the soil type for the simulation
   moisture
   pregion ; Reserved for later use...
+  soil-properties ;  [𝜅, 𝐷, 𝜙, 𝑐, 𝛼, 𝜖, 𝜌]  (hydraulische Leitfähigkeit (𝜅), gewichtete Diffusivität (𝐷), Verdunstungskoeffizient (𝜙), Wärmekapazität (𝑐), Albedo (𝛼), Emissionsgrad (𝜖) und Dichte (𝜌).)
+  temperature ; the temperatur for the patch
 ]
 
 to setup
@@ -17,7 +30,20 @@ to setup
   ; Set the size of the world and generate the map (plasma fractal)
   topography-set-globals
   topography-setup-world
+
+  energy-set-globals
   display ; Display the generated landscape
+end
+
+to go
+  ask patches with [soil-type != "Water"] [
+    energy-calc-temp
+  ]
+  let t ticks mod 48
+  set t t / 2
+  energy-calc-solar-irradiance t
+  energy-set-global-temperature
+  tick
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -48,11 +74,11 @@ ticks
 30.0
 
 BUTTON
-61
-43
-134
-76
-NIL
+18
+48
+92
+81
+Setup
 setup
 NIL
 1
@@ -74,6 +100,70 @@ seedVal
 1
 0
 Number
+
+BUTTON
+115
+48
+178
+81
+go
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
+
+MONITOR
+17
+185
+178
+230
+Temperature °C
+global-temperature
+17
+1
+11
+
+PLOT
+4
+275
+204
+425
+temperatur
+ticks
+temperature
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot global-temperature"
+
+PLOT
+787
+50
+987
+200
+solar-irradiance
+time
+irradiance
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot solar-irradiance"
 
 @#$#@#$#@
 ## WHAT IS IT?

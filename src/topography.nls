@@ -1,16 +1,21 @@
-globals [
-  sea-level ; Threshold for sea level [cm]
-  min-suitable-height-threshold-wheat ; minimum height for wheat field
-  max-suitable-height-threshold-wheat ; maximum height for wheat field
-]
-
+;==============================
+; Procedure: topography-set-globals
+; Parameter(s): None
+; Description: Initializes global variables defining sea level and suitable height thresholds for wheat fields.
+;==============================
 to topography-set-globals
-  ; Defining the maximum, minimum and stable suitable height thresholds
+  ; Defining the maximum, minimum, and stable suitable height thresholds
   set sea-level 0.2
   set min-suitable-height-threshold-wheat 0.35
   set max-suitable-height-threshold-wheat 0.6
+  set global-temperature 0
 end
 
+;==============================
+; Procedure: topography-setup-world
+; Parameter(s): None
+; Description: Generates a topographic map using the random midpoint displacement method, determining land and water patches and placing wheat fields.
+;==============================
 to topography-setup-world
   ; Here we generate a topographic map using the diamond-square algorithm, a method based on random displacement.
   let pow-size 8    ; This is the power of 2 for the initial size.
@@ -58,6 +63,7 @@ to topography-setup-world
       set height (avg + random-uniform disp)
     ]
     
+    
     ; Updating step size and displacement for the next iteration.
     set grid-size grid-size / 2
     set disp disp * disp-ratio
@@ -68,6 +74,11 @@ to topography-setup-world
   topography-place-soil
 end
 
+;==============================
+; Procedure: topography-place-landscape
+; Parameter(s): None
+; Description: Determines whether each patch becomes land or water based on its height, and sets color accordingly.
+;==============================
 to topography-place-landscape
   let max-height max [height] of patches
   let min-height min [height] of patches
@@ -78,17 +89,20 @@ to topography-place-landscape
     
     ; Coloring patches based on sea level.
     ifelse height <= sea-level [
-      
       set pcolor scale-color blue height -.5 1.5
       set pkind "Water"
     ] [
-      
       set pcolor scale-color green height -.5 1.5
       set pkind "Land"
     ]
   ]
 end
 
+;==============================
+; Procedure: topography-place-wheat
+; Parameter(s): None
+; Description: Places wheat fields on suitable patches of land.
+;==============================
 to topography-place-wheat
    ; Defining the size of square regions for the wheat fields.
   let region-size 0.10
@@ -109,10 +123,8 @@ to topography-place-wheat
     let min-distance 0.1
     
     ifelse height >= min-suitable-height-threshold-wheat and height <= max-suitable-height-threshold-wheat and pkind != "Water" [
-      
       ; Checking if the patch is within a wheat field pair and not too close to another pair.
       if is-in-pair and not any? other patches in-radius min-distance with [abs pxcor mod pair-size = 0 and abs pycor mod pair-size = 0 and pkind = "Wheat"] [
-        
         ; Defining the size of the rectangular wheat field.
         let rect-width 5
         let rect-height 10
@@ -121,7 +133,6 @@ to topography-place-wheat
         let is-in-rect (abs (pxcor mod rect-width) < rect-width / 2) and (abs (pycor mod rect-height) < rect-height / 2)
         
         if is-in-rect [
-          
           ; Setting the color of patches according to wheat fields.
           set pcolor yellow
           ; Marking the patch as a wheat field.
@@ -137,45 +148,108 @@ to topography-place-wheat
   ]
 end
 
+;==============================
+; Procedure: topography-place-soil
+; Parameter(s): None
+; Description: Calls procedures to set soil type and moisture for patches.
+;==============================
 to topography-place-soil
   topography-set-soil-type
   topography-set-soil-moisture
 end
 
+;==============================
+; Procedure: topography-set-soil-type
+; Parameter(s): None
+; Description: Sets the soil type for each patch based on its height.
+;==============================
 to topography-set-soil-type
-  ; set the soil type of the ground
-  ; this simulation litits to: Cambisol and Luvisol for temperate climate
+  ; Set the soil type of the ground, including ground parameterization.
+  ; This simulation limits to Cambisol and Luvisol for temperate climate.
    ask patches [
-    
-    ; set soil type based on height
+    ; Set soil type based on height
     ifelse height <= sea-level [
-      ; under the sea level
+      ; Under the sea level
       set soil-type "Water"
-      
+      set soil-properties [0 0 0 0 0 0 0] ; specially set water due to its not composed out of sand, clay, and silt
     ] [
-      
       ifelse height <= sea-level + 0.1 [
         ; Near sea level: Alluvial soil
         set soil-type "Alluvial Soil"
+        set soil-properties soil-parametrics 0.40 0.30 0.30 ; example values TODO: replace with real values
       ] [ 
-    
         ifelse height <= sea-level + 0.5 [
-          ; low and medium height: Cambisol
+          ; Low and medium height: Cambisol
           set soil-type "Cambisol"
+          ; Characterization of Cambisol
+          set soil-properties soil-parametrics 0.35 0.30 0.35 ; example values TODO: replace with real values
         ] [
-          ; heigher ground: Luvisol
+          ; Higher ground: Luvisol
           set soil-type "Luvisol"
+          set soil-properties soil-parametrics 0.30 0.35 0.35 ; example values TODO: replace with real values
         ]
       ]
     ]  
   ]
 end
 
+;==============================
+; Procedure: topography-set-soil-moisture
+; Parameter(s): None
+; Description: Sets the soil moisture for each patch. (Not yet implemented)
+;==============================
 to topography-set-soil-moisture
-  ; TODO: implement (D3vNull41)
+  ask patches [
+    ifelse soil-type = "Water" [
+      set moisture 1
+    
+    ] [
+      set moisture (1 - height) * item 0 soil-properties ; TODO: replace this with a more realistic approche
+    ]
+  ]
 end
 
-; Returns a pseudo-random floating point number in the range [-x;x].
+;==============================
+; Procedure: soil-parametrics
+; Parameter(s): sand, clay, silt - the percenteral composition of the soil expressed in sand, clay and silt
+; Description: Calculates soil properties based on sand, clay, and silt content.
+;==============================
+to-report soil-parametrics [sand clay silt]
+  ; In order for the parametrization of Cambisol consider the soil composition.
+  ; For simplicity only consider sand, clay, and silt.
+  ; Example parameters TODO: replace with real parameters
+  
+  let parameters [
+    [0.5 0.4 0.6]  ; Hydraulic conductivity (sand, clay, silt)
+    [0.3 0.2 0.4]  ; Weighted diffusivity (sand, clay, silt)
+    [0.7 0.6 0.8]  ; Evaporative ground coefficient (sand, clay, silt)
+    [830 878 1350]  ; Heat capacity (sand, clay, silt)
+    [0.15 0.3 0.25]  ; Albedo (sand, clay, silt)
+    [0.8 0.7 0.85]  ; Emissivity (sand, clay, silt)
+    [1500 1400 1600]  ; Density (sand, clay, silt)
+  ]
+  
+  let properties-length length (parameters)  ; Get the number of parameters
+
+  let properties n-values properties-length [i -> 0]  ; Initialize parameter list
+  
+  ; Calculate soil properties
+  foreach (range properties-length) [
+    i ->
+    ; just focus on sand, clay, and silt... (Groenendyk DG, Ferré TP, Thorp KR, Rice AK. Hydrologic-Process-Based Soil Texture Classifications for Improved Visualization of Landscape Function. PLoS One. 2015 Jun 29;10(6):e0131299. doi: 10.1371/journal.pone.0131299. PMID: 26121466; PMCID: PMC4488316.)
+    ; P = 𝛾1 * P(sand) + 𝛾2 * P(clay) + 𝛾3 * P(silt)
+    let property-value sand * item 0 (item i parameters) + clay * item 1 (item i parameters) + silt * item 2 (item i parameters)
+    set properties replace-item i properties property-value
+  ]
+  
+  report properties
+end
+
+;==============================
+; Procedure: random-uniform
+; Parameter(s): x - number indecating the range
+; Description: Returns a pseudo-random floating point number in the range [-x;x].
+;==============================
 to-report random-uniform [x]
   report (random-float 1 - 0.5) * 2 * x
 end
