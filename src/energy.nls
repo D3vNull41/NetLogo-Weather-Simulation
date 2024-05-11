@@ -1,0 +1,90 @@
+;==============================
+; Procedure: topography-set-globals
+; Parameter(s): None
+; Description: Initializes global variables defining global-temoperature (init: 0 °K)
+;==============================
+to energy-set-globals
+  set global-temperature 0
+  set solar-irradiance 0
+end
+
+;==============================
+; Procedure: energy-calc-temp
+; Parameter(s): None
+; Description: Calculates the temperature change for each patch based on solar irradiance, energy loss, and heat capacity.
+;==============================
+to energy-calc-temp
+  let heat 0
+  let t ticks mod 48
+  set t t / 2
+    
+  let reflection 1 - item 2 soil-properties ; 1 - albedo
+  let absorbed-energy reflection * solar-irradiance ; (1 − 𝛼)*P(𝑡)
+  let real-energy absorbed-energy - energy-calc-energy-loss item 5 soil-properties temperature ; absorbed-energy - emitted radiative flux
+  
+  set heat real-energy / 5000 * item 3 soil-properties ; real-energy / thickness * heat capacity
+  set temperature temperature + heat
+end
+
+;==============================
+; Procedure:  energy-calc-solar-irradiance
+; Parameter(s): t - time since sunrise
+; Description: set the solar irradiation aproximated as a pure harmonic function of time around an average. Returnd as W/m²
+;==============================
+to  energy-calc-solar-irradiance [t]
+  let daylight-duration 12 ; d
+  let hour-of-sunrise 0 ; s
+  let avg-irradiance 1361 ; solar constant without athmosphere in W/m2
+
+  set solar-irradiance avg-irradiance * max list rad-sin (pi / 2 * (1 - (t - hour-of-sunrise - (daylight-duration / 2)) / (daylight-duration / 2))) 0 ; always be positiv ;)
+end
+
+;==============================
+; Procedure: rad-sin
+; Parameters: r - Angle in radians
+; Description: This procedure calculates the sine of an angle given in radians. It first converts the angle to degrees, computes the sine, and returns the result.
+;==============================
+to-report rad-sin [rad]
+  let angle-degrees rad * 360 / (2 * pi)   ; Convert angle from radians to degrees
+  report sin angle-degrees
+end
+
+;==============================
+; Procedure:  energy-calc-energy-loss
+; Parameter(s): emissivity - emissivity of the soil (𝜖), temperatur - temperatur (T) of the soil in Kelvin (K)
+; Description: return the emissivity of the soil by applying the Stefan-Boltzman law
+;==============================
+to-report energy-calc-energy-loss [emissivity temperatur]
+  let surface-area patch-size * patch-size ; expirement with different values...
+  let boltzmann-constant 5.670374419e-8 ; Stefan-Boltzmann-constant in W/m²/K^4
+  
+  report surface-area * emissivity * boltzmann-constant * temperatur ^ 4
+end
+
+;==============================
+; Procedure: energy-set-global-temperature
+; Parameter(s): None
+; Description: Calculates the average temperature of all patches excluding water patches and sets the global temperature in Celsius.
+;==============================
+to energy-set-global-temperature
+  let current-average-temperature energy-average-patch-temperature
+  set global-temperature energy-kelvin-to-celsius current-average-temperature
+end
+
+;==============================
+; Procedure: energy-average-patch-temperature
+; Parameter(s): None
+; Description: Calculates the average temperature of all patches excluding water patches.
+;==============================
+to-report energy-average-patch-temperature
+  report mean [temperature] of patches with [soil-type != "Water"]
+end
+
+;==============================
+; Procedure: energy-kelvin-to-celsius
+; Parameter(s): temperatur - Temperature in Kelvin
+; Description: Converts temperature from Kelvin to Celsius.
+;==============================
+to-report energy-kelvin-to-celsius [temperatur]
+  report temperatur - 273.15
+end
