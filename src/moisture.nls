@@ -1,0 +1,56 @@
+;==============================
+; Procedure: setup-moisture
+; Parameter(s): None
+; Description: Initializes the current moisture content of patches and calculates saturation moisture content for each patch.
+;==============================
+to setup-moisture
+  ask patches [
+    set current-moisture-content random-float 1
+    calculate-saturation-moisture-content
+  ]
+end
+
+;==============================
+; Procedure: calculate-saturation-moisture-content
+; Parameter(s): None
+; Description: Calculates the saturation moisture content based on temperature using the Clausius–Clapeyron relation.
+;==============================
+to calculate-saturation-moisture-content
+  if temperature = 0 [
+    set temperature 0.1 ; ensure we don't divide through 0
+  ]
+  
+  let es 0.611 * exp((17.27 * (temperature - 273.15)) / ((temperature - 273.15) + 237.3))
+  set saturation-moisture-content (es / (287.05 * temperature)) * 1000
+end
+
+;==============================
+; Procedure: update-moisture-content
+; Parameter(s): None
+; Description: Updates the current moisture content of patches based on relative humidity and evaporation rate.
+;==============================
+to update-moisture-content
+    set relative-humidity (current-moisture-content / saturation-moisture-content) * 100
+    ifelse (current-moisture-content > saturation-moisture-content) [
+      set current-moisture-content saturation-moisture-content
+    ] [
+      let evaporation-rate (1 - relative-humidity / 100) * 0.01
+      set current-moisture-content current-moisture-content - evaporation-rate
+      if current-moisture-content < 0 [ set current-moisture-content 0 ]
+    ]
+end
+
+;==============================
+; Procedure: release-precipitation
+; Parameter(s): None
+; Description: Simulates precipitation by increasing the saturation moisture content of the current patch.
+;==============================
+to release-precipitation
+  ; Simple precipitation process
+  if random 100 < 10 [
+    ask patch-here [
+      set saturation-moisture-content saturation-moisture-content + 0.2
+      if saturation-moisture-content > 1 [ set saturation-moisture-content 1 ]
+    ]
+  ]
+end

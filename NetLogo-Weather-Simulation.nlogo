@@ -1,5 +1,14 @@
-__includes["./src/topography.nls" "./src/energy.nls"]
-; Notes:Each tick should be interpreted as 1 second
+__includes["./src/topography.nls" "./src/energy.nls" "./src/moisture.nls"]
+; Notes:Each tick should be interpreted as 30 minutes
+
+breed [clouds cloud]
+breed [heat-patches heat-patch]
+
+clouds-own [
+  moisture-content
+  cloud-moisture
+  cloud-lifetime
+]
 
 ; global variables
 globals [
@@ -9,6 +18,7 @@ globals [
 
   global-temperature ; the overall temperatur of the "world" (map)
   solar-irradiance
+  atmospheric-transmittance
 ]
 
 ; These variables store information about each patch, like its height, type, and region.
@@ -18,8 +28,13 @@ patches-own [
   soil-type ; This stores the soil type for the simulation
   moisture
   pregion ; Reserved for later use...
-  soil-properties ;  [𝜅, 𝐷, 𝜙, 𝑐, 𝛼, 𝜖, 𝜌]  (hydraulische Leitfähigkeit (𝜅), gewichtete Diffusivität (𝐷), Verdunstungskoeffizient (𝜙), Wärmekapazität (𝑐), Albedo (𝛼), Emissionsgrad (𝜖) und Dichte (𝜌).)
+  soil-properties ;  [𝜅, 𝐷, 𝜙, 𝑐, 𝛼, 𝜖, 𝜌]  (hydraulic conductivity (𝜅), weighted diffusivity (𝐷), evaporation coefficient (𝜙), heat capacity (𝑐), albedo (𝛼), emissivity (𝜖), and density (𝜌).)
   temperature ; the temperatur for the patch
+
+  saturation-moisture-content
+  current-moisture-content
+  relative-humidity
+  absorbed-radiation
 ]
 
 to setup
@@ -27,23 +42,57 @@ to setup
   reset-ticks
 
   no-display ; Hide display (during setup of the world) for performance
+
   ; Set the size of the world and generate the map (plasma fractal)
   topography-set-globals
   topography-setup-world
 
   energy-set-globals
+  energy-init-temperature
+  setup-moisture
+
+  if heat-map [
+    setup-heat-map
+  ]
+
   display ; Display the generated landscape
 end
 
 to go
-  ask patches with [soil-type != "Water"] [
-    energy-calc-temp
-  ]
   let t ticks mod 48
   set t t / 2
-  energy-calc-solar-irradiance t
+
+  ask patches [
+    energy-calc-temp
+    update-moisture-content
+  ]
+
+  energy-calc-solar-irradiance t ; calc the daly
   energy-set-global-temperature
   tick
+end
+
+; =========
+; Heat map procedures
+; =========
+to setup-heat-map
+  let transparency 50
+  let _color [255 0 0]
+  ask patches [
+
+    sprout-heat-patches 1 [
+      set shape "square"
+      setxy pxcor pycor
+      set color lput transparency sublist _color 0 3
+    ]
+  ]
+  ;TODO
+end
+
+to update-heat-map
+  let max-temperature 313 ; 40°C
+  let min-temperature 263 ; -10°C
+  ; TODO
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -130,10 +179,10 @@ global-temperature
 11
 
 PLOT
-4
-275
-204
-425
+787
+212
+987
+362
 temperatur
 ticks
 temperature
@@ -164,6 +213,17 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot solar-irradiance"
+
+SWITCH
+20
+245
+146
+278
+heat-map
+heat-map
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
