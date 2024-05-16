@@ -6,6 +6,18 @@
 to energy-set-globals
   set global-temperature 0
   set solar-irradiance 0
+  set atmospheric-transmittance 0.79 ; Example transmittance value
+end
+
+;==============================
+; Procedure: energy-init-temperature
+; Parameter(s): None
+; Description:  Initializes the temperature of each patch to 288 K (equivalent to 15°C).
+;==============================
+to energy-init-temperature
+  ask patches [
+    set temperature 288 ; 15°C
+  ]
 end
 
 ;==============================
@@ -15,16 +27,26 @@ end
 ;==============================
 to energy-calc-temp
   let heat 0
-  let t ticks mod 48
-  set t t / 2
-    
-  let reflection 1 - item 2 soil-properties ; 1 - albedo
-  let absorbed-energy reflection * solar-irradiance ; (1 − 𝛼)*P(𝑡)
-  let real-energy absorbed-energy - energy-calc-energy-loss item 5 soil-properties temperature ; absorbed-energy - emitted radiative flux
+  let albedo (item 4 soil-properties) ; Albedo (𝛼)
+  let emissivity (item 5 soil-properties) ; emissivity (𝜖)
+  let specific-heat (item 3 soil-properties) ; Heat capacity (c)
+  let density (item 6 soil-properties) ; density (ρ)
   
-  set heat real-energy / 5000 * item 3 soil-properties ; real-energy / thickness * heat capacity
-  set temperature temperature + heat
+  ; Calculate reflected solar irradiance
+  let reflection 1 - albedo
+  let absorbed-energy reflection * solar-irradiance ; (1 − 𝛼) * P(t)
+  
+  ; Calculate radiative heat loss using Stefan-Boltzmann law
+  let radiative-loss energy-calc-energy-loss emissivity temperature ; 𝜖 * σ * T^4
+  
+  ; Calculate real energy change
+  let real-energy absorbed-energy - radiative-loss
+  
+  ; Adjust heat calculation considering the specific heat capacity and density
+  set heat real-energy / (specific-heat * density) ; adjusted heat calculation with density and specific heat capacity
+  set temperature temperature + heat ; temperature in K (kelvin)
 end
+
 
 ;==============================
 ; Procedure:  energy-calc-solar-irradiance
@@ -33,10 +55,10 @@ end
 ;==============================
 to  energy-calc-solar-irradiance [t]
   let daylight-duration 12 ; d
-  let hour-of-sunrise 0 ; s
-  let avg-irradiance 1361 ; solar constant without athmosphere in W/m2
+  let solar-constant 1361
+  let avg-irradiance solar-constant * atmospheric-transmittance; solar constant without athmosphere in W/m2
 
-  set solar-irradiance avg-irradiance * max list rad-sin (pi / 2 * (1 - (t - hour-of-sunrise - (daylight-duration / 2)) / (daylight-duration / 2))) 0 ; always be positiv ;)
+  set solar-irradiance avg-irradiance * max list rad-sin (pi / 2 * (1 - (t - (daylight-duration / 2)) / (daylight-duration / 2))) 0 ; always be positiv ;)
 end
 
 ;==============================
@@ -55,10 +77,20 @@ end
 ; Description: return the emissivity of the soil by applying the Stefan-Boltzman law
 ;==============================
 to-report energy-calc-energy-loss [emissivity temperatur]
+  let humidity-factor calc-humidity-factor relative-humidity
   let surface-area patch-size * patch-size ; expirement with different values...
   let boltzmann-constant 5.670374419e-8 ; Stefan-Boltzmann-constant in W/m²/K^4
   
-  report surface-area * emissivity * boltzmann-constant * temperatur ^ 4
+  report surface-area * emissivity * boltzmann-constant * temperatur ^ 4 * humidity-factor
+end
+
+;==============================
+; Procedure: calc-humidity-factor
+; Parameter(s): relative-humidity
+; Description: Calculates the humidity factor based on relative humidity.
+;==============================
+to-report calc-humidity-factor [_relative-humidity]
+  report 1 - 0.3 * (_relative-humidity / 100)
 end
 
 ;==============================
@@ -77,7 +109,7 @@ end
 ; Description: Calculates the average temperature of all patches excluding water patches.
 ;==============================
 to-report energy-average-patch-temperature
-  report mean [temperature] of patches with [soil-type != "Water"]
+  report mean [temperature] of patches 
 end
 
 ;==============================

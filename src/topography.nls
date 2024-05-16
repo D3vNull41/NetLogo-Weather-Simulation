@@ -71,7 +71,7 @@ to topography-setup-world
   
   topography-place-landscape ; Deciding whether a patch becomes land or water based on its height.
   topography-place-wheat ; Adding wheat fields to suitable places on the topographic map.
-  topography-place-soil
+  topography-place-soil ; ascertain the soil type that a given patch will become based on its height.
 end
 
 ;==============================
@@ -171,7 +171,8 @@ to topography-set-soil-type
     ifelse height <= sea-level [
       ; Under the sea level
       set soil-type "Water"
-      set soil-properties [0 0 0 0 0 0 0] ; specially set water due to its not composed out of sand, clay, and silt
+      set soil-properties [0 0 0 418 0.1 0.95 1.1] ; specially set water due to its not composed out of sand, clay, and silt
+      
     ] [
       ifelse height <= sea-level + 0.1 [
         ; Near sea level: Alluvial soil
@@ -225,8 +226,8 @@ to-report soil-parametrics [sand clay silt]
     [0.7 0.6 0.8]  ; Evaporative ground coefficient (sand, clay, silt)
     [830 878 1350]  ; Heat capacity (sand, clay, silt)
     [0.15 0.3 0.25]  ; Albedo (sand, clay, silt)
-    [0.8 0.7 0.85]  ; Emissivity (sand, clay, silt)
-    [1500 1400 1600]  ; Density (sand, clay, silt)
+    [0.6 0.7 0.85]  ; Emissivity (sand, clay, silt)
+    [1.50 1.40 1.60]  ; Density (sand, clay, silt)
   ]
   
   let properties-length length (parameters)  ; Get the number of parameters
