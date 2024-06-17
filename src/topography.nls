@@ -4,8 +4,13 @@
 ; Description: Initializes global variables defining sea level and suitable height thresholds for wheat fields.
 ;==============================
 to topography-set-globals
+  
+  ; ensure that the sea-level is correctly set by the user
+  if not is-number? sea-level or sea-level >= 1 [ 
+    set sea-level 0.2
+  ]
+
   ; Defining the maximum, minimum, and stable suitable height thresholds
-  set sea-level 0.2
   set min-suitable-height-threshold-wheat 0.35
   set max-suitable-height-threshold-wheat 0.6
   set global-temperature 0
@@ -33,8 +38,8 @@ to topography-setup-world
   set diamond-set (patch-set patch 0 0)   ; Initial diamond: center patch
   
   ; Resizing the world, accounting for torus topology.
-  resize-world -grid-size  grid-size -grid-size  grid-size   ; 2^grid-size +1 * 2^grid-size +1
-  set-patch-size grid-size * 2 / world-width  
+  resize-world -grid-size  (grid-size - 1) -grid-size  (grid-size - 1)   ; 2^pow-size x 2^pow-size
+  set-patch-size round (grid-size * 2 / world-width)  
   
   ; Seeding the PRNG for reproducible topography maps.
   if is-number? seedVal [
@@ -70,7 +75,7 @@ to topography-setup-world
   ]
   
   topography-place-landscape ; Deciding whether a patch becomes land or water based on its height.
-  topography-place-wheat ; Adding wheat fields to suitable places on the topographic map.
+  ;topography-place-wheat ; Adding wheat fields to suitable places on the topographic map.
   topography-place-soil ; ascertain the soil type that a given patch will become based on its height.
 end
 
@@ -155,7 +160,7 @@ end
 ;==============================
 to topography-place-soil
   topography-set-soil-type
-  topography-set-soil-moisture
+  topography-set-soil-water-content
 end
 
 ;==============================
@@ -171,7 +176,7 @@ to topography-set-soil-type
     ifelse height <= sea-level [
       ; Under the sea level
       set soil-type "Water"
-      set soil-properties [0 0 0 418 0.1 0.95 1.1] ; specially set water due to its not composed out of sand, clay, and silt
+      set soil-properties [0 0 0 4186 0.1 0.96 1.1] ; specially set water due to its not composed out of sand, clay, and silt
       
     ] [
       ifelse height <= sea-level + 0.1 [
@@ -195,17 +200,26 @@ to topography-set-soil-type
 end
 
 ;==============================
-; Procedure: topography-set-soil-moisture
+; Procedure: topography-set-soil-water-content
 ; Parameter(s): None
-; Description: Sets the soil moisture for each patch. (Not yet implemented)
+; Description: Sets the soil water content for each patch.
 ;==============================
-to topography-set-soil-moisture
+to topography-set-soil-water-content
   ask patches [
     ifelse soil-type = "Water" [
-      set moisture 1
+      set soil-water-content 1
     
     ] [
-      set moisture (1 - height) * item 0 soil-properties ; TODO: replace this with a more realistic approche
+      ifelse soil-type = "Alluvial Soil" [
+        set soil-water-content 0.3
+      ] [
+        ifelse soil-type = "Cambisol" [
+          set soil-water-content 0.2
+          
+        ] [
+          set soil-water-content 0.1
+        ]
+      ]
     ]
   ]
 end
@@ -218,7 +232,6 @@ end
 to-report soil-parametrics [sand clay silt]
   ; In order for the parametrization of Cambisol consider the soil composition.
   ; For simplicity only consider sand, clay, and silt.
-  ; Example parameters TODO: replace with real parameters
   
   let parameters [
     [0.5 0.4 0.6]  ; Hydraulic conductivity (sand, clay, silt)

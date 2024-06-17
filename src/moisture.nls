@@ -1,11 +1,23 @@
 ;==============================
+; Procedure: setup-evaporation
+; Parameter(s): None
+; Description: Initializes the evaporation parameters including the gamma constant and sets a constant wind speed for all patches.
+;==============================
+to setup-evaporation
+  ask patches [
+    ; For now just set the wind speed as a constant
+    set wind-speed 3
+  ]
+end
+
+;==============================
 ; Procedure: setup-moisture
 ; Parameter(s): None
 ; Description: Initializes the current moisture content of patches and calculates saturation moisture content for each patch.
 ;==============================
 to setup-moisture
   ask patches [
-    set current-moisture-content random-float 1
+    set current-moisture-content 0
     calculate-saturation-moisture-content
   ]
 end
@@ -20,37 +32,232 @@ to calculate-saturation-moisture-content
     set temperature 0.1 ; ensure we don't divide through 0
   ]
   
-  let es 0.611 * exp((17.27 * (temperature - 273.15)) / ((temperature - 273.15) + 237.3))
-  set saturation-moisture-content (es / (287.05 * temperature)) * 1000
+  ; Calculate saturation vapor pressure es using the Clausius-Clapeyron equation
+  let es calculate-saturation-vapor-pressure temperature
+  ; Calculate saturation moisture content using the ideal gas law approximation
+  set saturation-moisture-content (es / (287.034 * temperature)) * 1000
 end
 
 ;==============================
-; Procedure: update-moisture-content
+; Procedure: update-moisture-content-water
 ; Parameter(s): None
-; Description: Updates the current moisture content of patches based on relative humidity and evaporation rate.
+; Description: Updates the moisture content for water patches by calculating evaporation and adjusting current moisture content.
+;              Creates clouds when relative humidity is very high.
 ;==============================
-to update-moisture-content
-    set relative-humidity (current-moisture-content / saturation-moisture-content) * 100
-    ifelse (current-moisture-content > saturation-moisture-content) [
-      set current-moisture-content saturation-moisture-content
-    ] [
-      let evaporation-rate (1 - relative-humidity / 100) * 0.01
-      set current-moisture-content current-moisture-content - evaporation-rate
-      if current-moisture-content < 0 [ set current-moisture-content 0 ]
-    ]
+to update-moisture-content-water
+  ; implementation of penman Equation following:  W.Jim Shuttleworth (1993) modification
+  ; Calculate relative humidity
+  set relative-humidity (current-moisture-content / saturation-moisture-content) * 100
+
+  ; Define constants and parameters
+  let T temperature
+  let U wind-speed
+  let e_s calculate-saturation-vapor-pressure T
+  let e_a (relative-humidity / 100) * e_s
+  let delta calculate-slope-vapor-pressure-curve T
+  set delta delta * 1e-3 ; Pa to kPa (m)
+  let gamma calculate-psychrometric-constant 101.3 ; Standard atmospheric pressure in kPa (rounded)
+  let R_n net-radiation
+  set R_n R_n * 0.5 * 3.6
+  let lambda_v 2.45e6 ; Latent heat of vaporization in J/kg
+
+  ; Calculate vapor pressure deficit (kPa)
+  let delta_e (e_s - e_a) * 1e3
+
+  ; Simplified Penman equation for evaporation (E in kg/m^2/s)
+  let E_mass ((delta * R_n + gamma * 6.43 * (1 + 0.536 * U) * delta_e) / (lambda_v * (delta + gamma)))
+
+  ; Convert the evaporation rate from kg/m^2/s to mm/tick (30 minutes)
+  let E_mm_tick (E_mass * 1800) / 1000
+  
+  ; Ensure the evaporation rate is not negative
+  if E_mm_tick < 0 [
+    set E_mm_tick 0
+  ]
+
+  ; Update current moisture content based on evaporation
+  set current-moisture-content current-moisture-content + E_mm_tick
+
+  ; Ensure moisture levels do not drop below zero
+  if current-moisture-content < 0 [ set current-moisture-content 0 ]
+
+  ; Handle cloud formation
+  if relative-humidity >= 99.9997 [
+    let cloud-moisture-content current-moisture-content * 0.2
+    set current-moisture-content current-moisture-content - cloud-moisture-content
+    ; create-cloud ; Implement cloud creation here
+  ]
+
+  ; Ensure we don't exceed saturation moisture content
+  if current-moisture-content > saturation-moisture-content [
+    set current-moisture-content saturation-moisture-content
+  ]
 end
 
 ;==============================
-; Procedure: release-precipitation
+; Procedure: update-moisture-content-soil
 ; Parameter(s): None
-; Description: Simulates precipitation by increasing the saturation moisture content of the current patch.
+; Description: Updates the moisture content for soil patches by calculating evaporation and transpiration (evapotranspiration) and adjusting current moisture content.
 ;==============================
-to release-precipitation
-  ; Simple precipitation process
-  if random 100 < 10 [
-    ask patch-here [
-      set saturation-moisture-content saturation-moisture-content + 0.2
-      if saturation-moisture-content > 1 [ set saturation-moisture-content 1 ]
+to update-moisture-content-soil
+  ; implementation of the FAO 56 Penman-Monteith equation
+  set relative-humidity (current-moisture-content / saturation-moisture-content) * 100
+
+  let T temperature
+  let U wind-speed ; Assuming wind-speed is defined
+  let e_s calculate-saturation-vapor-pressure T
+  let e_a (relative-humidity / 100) * e_s
+  let delta calculate-slope-vapor-pressure-curve T
+  let gamma calculate-psychrometric-constant 101.3 ; Standard atmospheric pressure in kPa
+  set gamma gamma * 1e3 ; kPa to Pa
+  let R_n net-radiation; / 48
+  set R_n R_n * 0.5 * 3.6
+  
+  ; Calculate vapor pressure deficit (kPa)
+  let delta_e (e_s - e_a) * 1e3
+
+  ; Penman–Monteith equation (simplified)
+  let E_penman ((0.408 * delta * R_n + gamma * (900 / (T + 273)) * U * delta_e) / (delta + gamma * (1 + 0.34 * U)))
+
+  ; Convert the evaporation (evapotranspiration) rate from mm/day to percentage per tick (30 min)
+  set E_penman (E_penman / 1000) / 48 ; scaled evaporation rate from mm/day to mm/tick (30 minutes)
+
+  if E_penman < 0 [
+    ; ensure the evaporation rate is not negative
+    set E_penman 0
+  ]
+  ; Update soil moisture content based on evaporation
+  set soil-water-content soil-water-content - E_penman
+  set current-moisture-content current-moisture-content + E_penman
+
+  ; Ensure moisture levels do not drop below zero
+  if soil-water-content < 0 [ set soil-water-content 0 ]
+  if current-moisture-content < 0 [ set current-moisture-content 0 ]
+
+  ; Handle cloud formation
+  if relative-humidity >= 99.9997 [
+    let cloud-moisture-content current-moisture-content * 0.2
+    set current-moisture-content current-moisture-content - cloud-moisture-content
+    ; create-cloud ; Implement cloud creation here
+  ]
+
+  ; Ensure we don't exceed saturation moisture content
+  if current-moisture-content > saturation-moisture-content [
+    set current-moisture-content saturation-moisture-content
+  ]
+end
+
+; ### Helper functions ###
+
+;==============================
+; Procedure: calculate-saturation-vapor-pressure
+; Parameter(s): T: Temperature in K (from a patch)
+; Description: Computes the saturation vapor pressure given temperature using the Clausius-Clapeyron equation.
+;==============================
+to-report calculate-saturation-vapor-pressure [T]
+  report 0.611 * exp((17.27 * (temperature - 273.15)) / ((temperature - 273.15) + 237.3))
+end
+
+;==============================
+; Procedure: calculate-slope-vapor-pressure-curve
+; Parameter(s): T: Temperature in K (from a patch)
+; Description: Calculates the slope of the vapor pressure curve at a given temperature using the derivative of the Clausius-Clapeyron equation.
+;==============================
+to-report calculate-slope-vapor-pressure-curve [T]
+  let es calculate-saturation-vapor-pressure T
+  ; for this employ the derivative of the Clausius-Clapeyron equation
+  report es * (4098.171 / (T - 273.15 + 237.3) ^ 2)
+end
+
+;==============================
+; Procedure: calculate-psychrometric-constant
+; Parameter(s): P: atmospheric Pressure of a patch
+; Description: Computes the psychrometric constant given atmospheric pressure.
+;==============================
+to-report calculate-psychrometric-constant [P]
+  ; this procedure was implemented to make our code more readable and to avoid "magic numbers"
+  ; P is the atmospheric pressure in kPa
+  let _cp 1.013 * 10e-3; 10^-3 ; Specific heat of moist air (MJ/kg°C)
+  let lambda 2.48 ; Latent heat of vaporization (MJ/kg) [aprox with the value for 10°C]
+  let epsilon 0.622 ; Ratio of molecular weight of water vapor/dry air
+  report (_cp * P) / (epsilon * lambda) ; kPa
+end
+
+;; ### cloud related ###
+
+;==============================
+; Procedure: setup-cloud-globals
+; Parameter(s): None
+; Description: Initializes global parameters related to cloud formation.
+;==============================
+to setup-cloud-globals
+  set hurst 0.7
+  set lacunarity 2.0
+  set resolution 1.0
+end
+
+;; TODO: implementation of the RSA-methode for cloud generation
+;==============================
+; Procedure: create-cloud
+; Parameter(s): None
+; Description: Placeholder procedure for cloud creation logic.
+;==============================
+to create-cloud
+  ; Note: this implementation is incomplet and flawed.... TODO
+  let x pxcor
+  let y pycor
+  let cloud-field n-values 10 [n-values 10 [0]] ;;Example 10 x 10 cloud field
+  
+  let k0 0
+  let k1 5 ; Example values for k0 and k1
+  
+  ; calculate the cloud field
+  foreach range 256 [
+    ?1 ->
+    foreach range 256 [
+      ?2 ->
+      let xi x + ?1
+      let yi y + ?2
+      let cloud-value fractal-value xi yi k0 k1
+      
+      let place patch xi yi
+      if place != nobody [
+        ask patch xi yi [
+          set pcolor scale-color white cloud-value 0 1
+        ]
+      ]
     ]
   ]
+end
+
+;==============================
+; Procedure: fractal-value
+; Parameter(s): x (coordinate), y (coordinate), k0 (initial scale), k1 (final scale)
+; Description: Calculates a fractal value based on the given coordinates and fractal parameters. (Placeholder TODO)
+;==============================
+to-report fractal-value [x y k0 k1]
+  ; Note: this implementation is incomplet and flawed.... TODO
+  let _sum 0
+  let r lacunarity
+  let H hurst
+  ;; Summation der Fraktalterme
+  let k k0
+  repeat (k1 - k0 + 1) [
+    let rk (r ^ k)
+    let pos-x ((x / resolution) * rk)
+    let pos-y ((y / resolution) * rk)
+    let di (floor (rk * pos-x) mod 99) ;; Grid boundary
+    let mi (pos-x * (3.0 - 2.0 * pos-x))
+    set _sum (_sum + ((rk ^ (- k * H)) * (random-float 1))) ;; Random value as placeholder
+    set k (k + 1)
+  ]
+  report _sum
+end
+
+;==============================
+; Procedure: update-clouds
+; Parameter(s): None
+; Description: Placeholder procedure for cloud updating logic.
+;==============================
+to update-clouds
 end

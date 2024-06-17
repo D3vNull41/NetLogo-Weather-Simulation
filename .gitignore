@@ -1,4 +1,5 @@
 # Ignore NetLogo temporary files
+experimental/*
 *.tmp.nlogo
 devNotes.txt
 *.swp

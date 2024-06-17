@@ -6,7 +6,7 @@
 to energy-set-globals
   set global-temperature 0
   set solar-irradiance 0
-  set atmospheric-transmittance 0.79 ; Example transmittance value
+  set atmospheric-transmittance 0.78 ; Example transmittance value (incoming solar engergy 100 - 6% reflected by the atmosphere - 16% absorbed by the atmosphere)
 end
 
 ;==============================
@@ -16,6 +16,7 @@ end
 ;==============================
 to energy-init-temperature
   ask patches [
+    set soil-heat-loss 0
     set temperature 288 ; 15°C
   ]
 end
@@ -28,23 +29,32 @@ end
 to energy-calc-temp
   let heat 0
   let albedo (item 4 soil-properties) ; Albedo (𝛼)
-  let emissivity (item 5 soil-properties) ; emissivity (𝜖)
-  let specific-heat (item 3 soil-properties) ; Heat capacity (c)
-  let density (item 6 soil-properties) ; density (ρ)
+  let emissivity (item 5 soil-properties) ; Emissivity (𝜖)
+  let specific-heat (item 3 soil-properties) ; Specific heat capacity (c)
+  let density (item 6 soil-properties) ; Density (ρ)
   
   ; Calculate reflected solar irradiance
-  let reflection 1 - albedo
-  let absorbed-energy reflection * solar-irradiance ; (1 − 𝛼) * P(t)
+  let reflection (1 - albedo)
+  set soil-absorbed-energy (reflection * solar-irradiance) ; (1 − 𝛼) * P(t)
   
-  ; Calculate radiative heat loss using Stefan-Boltzmann law
-  let radiative-loss energy-calc-energy-loss emissivity temperature ; 𝜖 * σ * T^4
+  ; Calculate radiative heat loss using Stefan-Boltzmann law (longwave heat emission)
+  let radiative-loss (energy-calc-energy-loss emissivity temperature) ; 𝜖 * σ * T^4 * H_r (H_r: is an improvement to take into account the saturation moisture content)
+  set soil-heat-loss radiative-loss
   
   ; Calculate real energy change
-  let real-energy absorbed-energy - radiative-loss
+  let real-energy (soil-absorbed-energy - radiative-loss)
+  set net-radiation real-energy
   
   ; Adjust heat calculation considering the specific heat capacity and density
-  set heat real-energy / (specific-heat * density) ; adjusted heat calculation with density and specific heat capacity
-  set temperature temperature + heat ; temperature in K (kelvin)
+  ; Note: the specific heat capacity should be used correctly here.
+  ;       specific-heat * density gives the volumetric heat capacity (c_v)
+  let volumetric-heat-capacity (specific-heat * density)
+  
+  ; Heat change should be divided by volumetric heat capacity (J/(K*m^3))
+  set heat (real-energy / volumetric-heat-capacity) ; adjusted heat calculation with density and specific heat capacity
+  
+  ; Update temperature
+  set temperature (temperature + heat) ; temperature in K (Kelvin)
 end
 
 
@@ -55,8 +65,8 @@ end
 ;==============================
 to  energy-calc-solar-irradiance [t]
   let daylight-duration 12 ; d
-  let solar-constant 1361
-  let avg-irradiance solar-constant * atmospheric-transmittance; solar constant without athmosphere in W/m2
+  let solar-constant 1361 ; solar constant without athmosphere in W/m2
+  let avg-irradiance solar-constant * atmospheric-transmittance
 
   set solar-irradiance avg-irradiance * max list rad-sin (pi / 2 * (1 - (t - (daylight-duration / 2)) / (daylight-duration / 2))) 0 ; always be positiv ;)
 end
@@ -90,26 +100,19 @@ end
 ; Description: Calculates the humidity factor based on relative humidity.
 ;==============================
 to-report calc-humidity-factor [_relative-humidity]
-  report 1 - 0.3 * (_relative-humidity / 100)
+  report 1 - 0.05 * (_relative-humidity / 100)
 end
 
 ;==============================
 ; Procedure: energy-set-global-temperature
 ; Parameter(s): None
-; Description: Calculates the average temperature of all patches excluding water patches and sets the global temperature in Celsius.
+; Description: Calculates the average temperature, average termal radiation and average reflected irradiance of all patches
 ;==============================
 to energy-set-global-temperature
-  let current-average-temperature energy-average-patch-temperature
+  let current-average-temperature mean [temperature] of patches
   set global-temperature energy-kelvin-to-celsius current-average-temperature
-end
-
-;==============================
-; Procedure: energy-average-patch-temperature
-; Parameter(s): None
-; Description: Calculates the average temperature of all patches excluding water patches.
-;==============================
-to-report energy-average-patch-temperature
-  report mean [temperature] of patches 
+  set avg-termal-radioation mean [soil-heat-loss] of patches
+  set avg-reflected-irradiance mean [soil-absorbed-energy] of patches
 end
 
 ;==============================

@@ -1,0 +1,104 @@
+;==============================
+; Procedure: place-heat-patches
+; Parameter(s): None
+; Description: Places heat patches on the grid at regular intervals. The patches are spaced based on a step-size and their color is determined by the temperature.
+;==============================
+to place-heat-patches
+  let step-size 8
+  let transperancy 70
+  let ctr 0 ; debug only
+  ask patches with [pxcor mod step-size = 0 and pycor mod step-size = 0][
+    let _color heat-map-temperature-to-color energy-kelvin-to-celsius temperature -20 30
+    
+    ; Create the heat-patch at the center of the 5x5 grid
+    sprout-heat-patches 1 [
+      set shape "square"
+      set size 8 ; NOTE: NetLogo measures patches in px but agent-sets in patches
+      setxy pxcor pycor
+      set color lput transperancy sublist _color 0 3
+    ]
+    set ctr ctr + 1
+  ]
+  print(word "Number of heat-patches: " ctr)
+end
+
+;==============================
+; Procedure: calc-heat-patches
+; Parameter(s): None
+; Description: Iterates over the grid of heat patches and updates their color based on the average temperature of their corresponding patch.
+;==============================
+to calc-heat-patches
+  ; TODO: we could add convolution of all patches within range based on Gaussian probability distribution to counter the loss by conversion from 1x1 patches to 8x8 heat-patches
+  ; (current state: not feasible for our old Desktop computers)
+  ask heat-patches [
+    let avg-temperature 0
+    ask patch pxcor pycor [set avg-temperature energy-kelvin-to-celsius  temperature]
+    set color heat-map-temperature-to-color avg-temperature -20 30
+  ]
+end
+
+;==============================
+; Procedure: heat-map-temperature-to-color
+; Parameter(s): 3 (temp, min-temp, max-temp)
+; Description: Converts a temperature value within a specified range into an RGB color using a smooth interpolation method based on the HSL color space.
+;==============================
+to-report heat-map-temperature-to-color [temp min-temp max-temp]
+  ; Ensure the temperature is within the specified limits
+  set temp max list min-temp temp
+  set temp min list max-temp temp
+  
+  ; Normalize the temperature to [0,1] based on the provided limits
+  let normalized-temp ((temp - min-temp) / (max-temp - min-temp))
+
+  ; Apply a power function to increase sensitivity
+  ; The exponent can be adjusted to change sensitivity; for example, 2 for squaring
+  let sensitivity-exponent 2
+  let adjusted-temp (normalized-temp ^ sensitivity-exponent)
+  
+  ; Map normalized temperature to a hue value
+  ; We map [0, 1] to [240, 0] degrees, corresponding to blue to red in HSL
+  let hue (240 * (1 - normalized-temp))
+  
+  ; Saturation and lightness are kept constant for simplicity
+  let saturation 1
+  let lightness 0.5
+
+  let c (1 - abs(2 * lightness - 1)) * saturation
+  let x c * (1 - abs((hue / 60 mod 2) - 1))
+  let m lightness - c / 2
+
+  ; Convert HSL to RGB  
+  let _rgb (ifelse-value (hue < 60) [(list c x 0)]
+           ifelse-value (hue < 120) [(list x c 0)]
+           ifelse-value (hue < 180) [(list 0 c x)]
+           ifelse-value (hue < 240) [(list 0 x c)]
+           ifelse-value (hue < 300) [(list x 0 c)]
+                            [(list c 0 x)])
+
+  ; Adjust the RGB values by adding m and scaling to [0, 255]
+  let r round ((item 0 _rgb + m) * 255)
+  let g round ((item 1 _rgb + m) * 255)
+  let b round ((item 2 _rgb + m) * 255)
+  
+  report (list r g b)
+end
+
+;==============================
+; Procedure: heat-map-setup-heat-map
+; Parameter(s): None
+; Description: Sets up the initial heat map by placing heat patches on the grid.
+;==============================
+to heat-map-setup-heat-map
+  place-heat-patches
+end
+
+;==============================
+; Procedure: heat-map-update-heat-map
+; Parameter(s): None
+; Description: Updates the heat map by recalculating the colors of the heat patches.
+;==============================
+to heat-map-update-heat-map
+  no-display
+  calc-heat-patches
+  display
+end
