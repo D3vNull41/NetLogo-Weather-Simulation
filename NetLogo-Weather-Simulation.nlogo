@@ -1,4 +1,4 @@
-__includes["./src/topography.nls" "./src/energy.nls" "./src/moisture.nls"]
+__includes["./src/topography.nls" "./src/energy.nls" "./src/moisture.nls" "./src/heat-map.nls"]
 ; Notes:Each tick should be interpreted as 30 minutes
 
 breed [clouds cloud]
@@ -12,29 +12,47 @@ clouds-own [
 
 ; global variables
 globals [
-  sea-level ; Threshold for sea level [cm]
+  ;sea-level ; Threshold for sea level [cm]
   min-suitable-height-threshold-wheat ; minimum height for wheat field
   max-suitable-height-threshold-wheat ; maximum height for wheat field
 
   global-temperature ; the overall temperatur of the "world" (map)
   solar-irradiance
+  avg-termal-radioation
+  avg-reflected-irradiance
   atmospheric-transmittance
+
+  ; ### cloud related ###
+  hurst
+  lacunarity
+  resolution
 ]
 
 ; These variables store information about each patch, like its height, type, and region.
 patches-own [
+  ; #### topography related ###
   height ; This stores the height of the landscape on each patch, ranging from 0 to 1.
   pkind ; Indicates the type of patch we're dealing with.
   soil-type ; This stores the soil type for the simulation
-  moisture
   pregion ; Reserved for later use...
+
+  ; ### energy related ###
   soil-properties ;  [𝜅, 𝐷, 𝜙, 𝑐, 𝛼, 𝜖, 𝜌]  (hydraulic conductivity (𝜅), weighted diffusivity (𝐷), evaporation coefficient (𝜙), heat capacity (𝑐), albedo (𝛼), emissivity (𝜖), and density (𝜌).)
   temperature ; the temperatur for the patch
+  net-radiation        ; Net radiation
 
-  saturation-moisture-content
-  current-moisture-content
-  relative-humidity
-  absorbed-radiation
+  ; ### evaporation related ###
+  soil-water-content
+  soil-heat-loss
+  soil-absorbed-energy
+  current-moisture-content      ; Current moisture content
+  saturation-moisture-content   ; Saturation moisture content
+  relative-humidity             ; relative humidity: ratio of current to saturation moisture content
+  evaporation-rate              ; Rate of evaporation
+
+  ; ### wind ###
+  wind-speed           ; Wind speed also affecting evaporation
+  wind-direction
 ]
 
 to setup
@@ -49,60 +67,72 @@ to setup
 
   energy-set-globals
   energy-init-temperature
+  setup-evaporation
   setup-moisture
+  setup-cloud-globals
 
   if heat-map [
-    setup-heat-map
+    heat-map-setup-heat-map
   ]
 
+;  ask patch 0 0 [
+;  create-cloud
+;  ]
   display ; Display the generated landscape
 end
+
 
 to go
   let t ticks mod 48
   set t t / 2
 
+  ; ### cycle for every patch ###
   ask patches [
-    energy-calc-temp
-    update-moisture-content
-  ]
+    energy-calc-temp ; calculate the temperature change for each patch
+    calculate-saturation-moisture-content ; calculate the current saturation-moisture-content (maximum moisture content)
 
-  energy-calc-solar-irradiance t ; calc the daly
-  energy-set-global-temperature
-  tick
-end
+    ifelse soil-type = "Water" [
+      update-moisture-content-water
 
-; =========
-; Heat map procedures
-; =========
-to setup-heat-map
-  let transparency 50
-  let _color [255 0 0]
-  ask patches [
-
-    sprout-heat-patches 1 [
-      set shape "square"
-      setxy pxcor pycor
-      set color lput transparency sublist _color 0 3
+    ] [
+      update-moisture-content-soil
     ]
   ]
-  ;TODO
-end
 
-to update-heat-map
-  let max-temperature 313 ; 40°C
-  let min-temperature 263 ; -10°C
-  ; TODO
+  ; ### solar irradiance ###
+  energy-calc-solar-irradiance t ; calc the daly solar irradiance
+  energy-set-global-temperature ; set the avg temperature of all patches for ploting
+
+  ; ### heat-map ###
+  ifelse heat-map [
+    if not any? heat-patches [
+      ; init the heat-patches if there are not inited (yet or anymore)
+      no-display
+      heat-map-setup-heat-map
+      display
+    ]
+
+    heat-map-update-heat-map
+  ] [
+    ; to ensure the heat-map can be turned of check if we have old heat-patches
+    if any? heat-patches [
+      ask heat-patches [
+        die
+      ]
+    ]
+  ]
+
+  tick
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-730
-532
+456
+42
+976
+563
 -1
 -1
-0.9980506822612085
+1.0
 1
 10
 1
@@ -113,9 +143,9 @@ GRAPHICS-WINDOW
 0
 1
 -256
-256
+255
 -256
-256
+255
 0
 0
 1
@@ -179,13 +209,13 @@ global-temperature
 11
 
 PLOT
-787
-212
-987
-362
+8
+481
+420
+678
 temperatur
-ticks
-temperature
+time (t)
+temperature C°
 0.0
 10.0
 0.0
@@ -197,22 +227,24 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot global-temperature"
 
 PLOT
-787
-50
-987
-200
+8
+287
+425
+466
 solar-irradiance
-time
-irradiance
+time (t)
+E W/m²
 0.0
 10.0
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot solar-irradiance"
+"solar-irradiance" 1.0 0 -5298144 true "" "plot solar-irradiance"
+"avg termal radiation" 1.0 0 -14070903 true "" "plot avg-termal-radioation"
+"avg reflected irradiance" 1.0 0 -4079321 true "" "plot avg-reflected-irradiance"
 
 SWITCH
 20
@@ -221,9 +253,20 @@ SWITCH
 278
 heat-map
 heat-map
-0
+1
 1
 -1000
+
+INPUTBOX
+193
+99
+354
+159
+sea-level
+0.2
+1
+0
+Number
 
 @#$#@#$#@
 ## WHAT IS IT?
